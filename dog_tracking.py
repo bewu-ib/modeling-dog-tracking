@@ -3,6 +3,9 @@ from PIL import Image
 from enum import Enum
 import copy
 import configparser
+# import tqdm
+from tqdm import tqdm
+from tqdm.contrib.telegram import tqdm as tqdm_telegram
 
 
 class Tile(Enum):
@@ -23,6 +26,8 @@ class Maze:
         self.map = []
         self.dog = [0, 0]
         self.girl = [0, 0]
+        
+        self.corridor_points = []
 
     def load_image(self, image_path):
         # Load an image from the given path.
@@ -37,6 +42,8 @@ class Maze:
             for y in range(im.size[1]):
                 if pixels[x, y] == (0, 0, 0):
                     p[x][y] = Tile.CORRIDOR.value
+                    
+                    self.corridor_points.append((x, y))
                 else:
                     p[x][y] = Tile.EMPTY.value
 
@@ -171,62 +178,68 @@ def debug_one(map, dog_pos, girl_pos, debug=False):
     print(Result(c).name)
 
 
-def calc_probability(maze_initial, girl_range_i=None, girl_range_j=None, debug=0, disable_vertices=True):
+def calc_probability(maze_initial, debug=0, disable_vertices=True, telegram=None) -> float:
     n_win = 0
     n_stuck = 0
 
-    if girl_range_i is None:
-        girl_range_i = range(len(maze_initial.map))
-    if girl_range_j is None:
-        girl_range_j = range(len(maze_initial.map[0]))
+    # if girl_range_i is None:
+    girl_range_i = range(len(maze_initial.corridor_points))
 
-    for k in girl_range_i:
-        for l in girl_range_j:
-            if not maze_initial.can_move(k, l):
+    if telegram is not None:
+        g_range = tqdm_telegram(girl_range_i, desc="Testing", token=telegram['token'], chat_id=telegram['chat'])
+    else:
+        g_range = tqdm(girl_range_i, desc="Testing")
+
+    for g_i in g_range:        
+        # for l in girl_range_j:
+        # if not maze_initial.can_move(k, l):
+        #     continue
+
+        k, l = maze_initial.corridor_points[g_i]
+
+        # check if point is a vertex
+        if disable_vertices:
+            if (maze_initial.can_move(k+1, l) ^ maze_initial.can_move(k-1, l)) or \
+                    (maze_initial.can_move(k, l+1) ^ maze_initial.can_move(k, l-1)):
+
                 continue
+
+        if debug > 1:
+            print("g", k, l)
+        girl_position = [k, l]
+
+        for d_i, d_j in maze_initial.corridor_points:
+        # for i in range(len(maze_initial.map)):
+        #     for j in range(len(maze_initial.map[0])):
+        #         if not maze_initial.can_move(i, j):
+        #             continue
 
             # check if point is a vertex
             if disable_vertices:
-                if (maze_initial.can_move(k+1, l) ^ maze_initial.can_move(k-1, l)) or \
-                        (maze_initial.can_move(k, l+1) ^ maze_initial.can_move(k, l-1)):
+                if (maze_initial.can_move(d_i+1, d_j) ^ maze_initial.can_move(d_i-1, d_j)) or \
+                        (maze_initial.can_move(d_i, d_j+1) ^ maze_initial.can_move(d_i, d_j-1)):
 
                     continue
 
             if debug > 1:
-                print("g", k, l)
-            girl_position = [k, l]
+                print("\t d", d_i, d_j)
+            dog_position = [d_i, d_j]
 
-            for i in range(len(maze_initial.map)):
-                for j in range(len(maze_initial.map[0])):
-                    if not maze_initial.can_move(i, j):
-                        continue
+            maze = maze_initial.copy()
 
-                    # check if point is a vertex
-                    if disable_vertices:
-                        if (maze_initial.can_move(i+1, j) ^ maze_initial.can_move(i-1, j)) or \
-                                (maze_initial.can_move(i, j+1) ^ maze_initial.can_move(i, j-1)):
+            maze.start(dog_position, girl_position)
 
-                            continue
+            c = Result.CONTINUE.value
+            while c == Result.CONTINUE.value:
+                c = maze.move()
 
-                    if debug > 1:
-                        print("\t d", i, j)
-                    dog_position = [i, j]
+            if debug > 1:
+                print("\t", Result(c).name)
 
-                    maze = maze_initial.copy()
-
-                    maze.start(dog_position, girl_position)
-
-                    c = Result.CONTINUE.value
-                    while c == Result.CONTINUE.value:
-                        c = maze.move()
-
-                    if debug > 1:
-                        print("\t", Result(c).name)
-
-                    if c == Result.WIN.value:
-                        n_win += 1
-                    elif c == Result.STUCK.value:
-                        n_stuck += 1
+            if c == Result.WIN.value:
+                n_win += 1
+            elif c == Result.STUCK.value:
+                n_stuck += 1
 
     if debug > 0:
         print()
@@ -254,10 +267,8 @@ if __name__ == "__main__":
     # quit()
 
     # test for different positions
-    n_girl_i = range(len(maze_initial.map))
-    n_girl_j = range(len(maze_initial.map[0]))
-
+    
     # p = calc_probability(maze_initial, 1, 1, debug_level)
-    p = calc_probability(maze_initial, n_girl_i, n_girl_j, debug_level)
+    p = calc_probability(maze_initial, debug_level, telegram=config['telegram'])
 
     print(p)
