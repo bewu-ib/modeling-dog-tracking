@@ -1,0 +1,6 @@
+[input]
+image = mazes/square5.png
+
+[debug]
+level = 1
+
