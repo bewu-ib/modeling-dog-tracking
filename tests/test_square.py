@@ -15,12 +15,12 @@ class SquareTest(unittest.TestCase):
     def test_square5(self):
         square = dog_tracking.Maze().load_image("mazes/square5.png")
         
-        self.assertEqual(dog_tracking.calc_probability(square), 0.75, "Square test 5 failed.")
+        self.assertEqual(dog_tracking.calc_probability(square)[0], 0.75, "Square test 5 failed.")
         
     def test_square10(self):
         square = dog_tracking.Maze().load_image("mazes/square10.png")
         
-        self.assertEqual(dog_tracking.calc_probability(square), 0.75, "Square test 10 failed.")
+        self.assertEqual(dog_tracking.calc_probability(square)[0], 0.75, "Square test 10 failed.")
 
 
 if __name__ == "__main__":

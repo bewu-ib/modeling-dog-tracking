@@ -6,6 +6,8 @@ import configparser
 # import tqdm
 from tqdm import tqdm
 from tqdm.contrib.telegram import tqdm as tqdm_telegram
+import multiprocessing as mp
+import os
 
 
 class Tile(Enum):
@@ -178,18 +180,20 @@ def debug_one(map, dog_pos, girl_pos, debug=False):
     print(Result(c).name)
 
 
-def calc_probability(maze_initial, debug=0, disable_vertices=True, telegram=None) -> float:
+def calc_probability(maze_initial, debug=0, girl_range_i=None, disable_vertices=True, telegram=None):
     n_win = 0
     n_stuck = 0
 
-    # if girl_range_i is None:
-    girl_range_i = range(len(maze_initial.corridor_points))
+    if girl_range_i is None:
+        girl_range_i = range(len(maze_initial.corridor_points))
 
-    if telegram is not None:
-        g_range = tqdm_telegram(girl_range_i, desc="Testing girl",
+    bar_title = f"Testing girl ({os.getpid()})"
+
+    if telegram is not None and bool(int(telegram['enabled'])):
+        g_range = tqdm_telegram(girl_range_i, desc=bar_title,
                                 token=telegram['token'], chat_id=telegram['chat'])
     else:
-        g_range = tqdm(girl_range_i, desc="Testing")
+        g_range = tqdm(girl_range_i, desc=bar_title)
 
     for g_i in g_range:
         # for l in girl_range_j:
@@ -208,8 +212,12 @@ def calc_probability(maze_initial, debug=0, disable_vertices=True, telegram=None
         if debug > 1:
             print("g", k, l)
         girl_position = [k, l]
+        
+        d_range = range(len(maze_initial.corridor_points))
+        if debug > 0:
+            d_range = tqdm(d_range, desc="Testing dog", leave=False)
 
-        for d_i in tqdm(range(len(maze_initial.corridor_points)), desc="Testing dog", leave=False):
+        for d_i in d_range:
             # for i in range(len(maze_initial.map)):
             #     for j in range(len(maze_initial.map[0])):
             #         if not maze_initial.can_move(i, j):
@@ -249,8 +257,9 @@ def calc_probability(maze_initial, debug=0, disable_vertices=True, telegram=None
         print("win", n_win)
         print("stuck", n_stuck)
         print("win chance", n_win / (n_win + n_stuck))
+        print()
 
-    return n_win / (n_win + n_stuck)
+    return n_win / (n_win + n_stuck), n_win, n_stuck
 
 
 if __name__ == "__main__":
@@ -272,7 +281,45 @@ if __name__ == "__main__":
     # test for different positions
 
     # p = calc_probability(maze_initial, 1, 1, debug_level)
-    p = calc_probability(maze_initial, debug_level,
-                         telegram=config['telegram'])
+    
+    def calc_process(maze_initial, range_, win_value, stuck_value, debug_level, config):
+        p, w, s = calc_probability(maze_initial, girl_range_i=range_, debug=debug_level, telegram=config['telegram'] if "telegram" in config else None)
+        
+        win_value.value = w
+        stuck_value.value = s
+    
+    processes = []
+    win_values = []
+    stuck_values = []
+    for process in range(int(config['processes']['number'])):
+        # p = calc_probability(maze_initial, debug=debug_level,
+        #                  telegram=config['telegram'] if "telegram" in config else None)
+        
+        p_range = range(process, len(maze_initial.corridor_points), int(config['processes']['number']))
+        
+        w = mp.Value('i', 0)
+        s = mp.Value('i', 0)
+        
+        processes.append(mp.Process(target=calc_process, args=(maze_initial, p_range, w, s, debug_level, config)))
 
-    print(p)
+        win_values.append(w)
+        stuck_values.append(s)
+
+    for p in processes:
+        p.start()
+        
+    for p in processes:
+        p.join()
+        
+    print("\nFinished all processes\n")
+    
+    t_win = 0
+    t_stuck = 0
+    for i in range(len(processes)):
+        print(f"process {i} win {win_values[i].value} stuck {stuck_values[i].value}")
+        
+        t_win += win_values[i].value
+        t_stuck += stuck_values[i].value
+        
+    print(f"\ntotal win {t_win} stuck {t_stuck}")
+    print(f"total win chance {t_win / (t_win + t_stuck)}")

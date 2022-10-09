@@ -1,3 +1,6 @@
+[processes]
+number = 4
+
 [input]
 image = mazes/square5.png
 
