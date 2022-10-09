@@ -26,7 +26,7 @@ class Maze:
         self.map = []
         self.dog = [0, 0]
         self.girl = [0, 0]
-        
+
         self.corridor_points = []
 
     def load_image(self, image_path):
@@ -42,7 +42,7 @@ class Maze:
             for y in range(im.size[1]):
                 if pixels[x, y] == (0, 0, 0):
                     p[x][y] = Tile.CORRIDOR.value
-                    
+
                     self.corridor_points.append((x, y))
                 else:
                     p[x][y] = Tile.EMPTY.value
@@ -186,11 +186,12 @@ def calc_probability(maze_initial, debug=0, disable_vertices=True, telegram=None
     girl_range_i = range(len(maze_initial.corridor_points))
 
     if telegram is not None:
-        g_range = tqdm_telegram(girl_range_i, desc="Testing", token=telegram['token'], chat_id=telegram['chat'])
+        g_range = tqdm_telegram(girl_range_i, desc="Testing girl",
+                                token=telegram['token'], chat_id=telegram['chat'])
     else:
         g_range = tqdm(girl_range_i, desc="Testing")
 
-    for g_i in g_range:        
+    for g_i in g_range:
         # for l in girl_range_j:
         # if not maze_initial.can_move(k, l):
         #     continue
@@ -208,22 +209,24 @@ def calc_probability(maze_initial, debug=0, disable_vertices=True, telegram=None
             print("g", k, l)
         girl_position = [k, l]
 
-        for d_i, d_j in maze_initial.corridor_points:
-        # for i in range(len(maze_initial.map)):
-        #     for j in range(len(maze_initial.map[0])):
-        #         if not maze_initial.can_move(i, j):
-        #             continue
+        for d_i in tqdm(range(len(maze_initial.corridor_points)), desc="Testing dog", leave=False):
+            # for i in range(len(maze_initial.map)):
+            #     for j in range(len(maze_initial.map[0])):
+            #         if not maze_initial.can_move(i, j):
+            #             continue
+
+            i, j = maze_initial.corridor_points[d_i]
 
             # check if point is a vertex
             if disable_vertices:
-                if (maze_initial.can_move(d_i+1, d_j) ^ maze_initial.can_move(d_i-1, d_j)) or \
-                        (maze_initial.can_move(d_i, d_j+1) ^ maze_initial.can_move(d_i, d_j-1)):
+                if (maze_initial.can_move(i+1, j) ^ maze_initial.can_move(i-1, j)) or \
+                        (maze_initial.can_move(i, j+1) ^ maze_initial.can_move(i, j-1)):
 
                     continue
 
             if debug > 1:
-                print("\t d", d_i, d_j)
-            dog_position = [d_i, d_j]
+                print("\t d", i, j)
+            dog_position = [i, j]
 
             maze = maze_initial.copy()
 
@@ -267,8 +270,9 @@ if __name__ == "__main__":
     # quit()
 
     # test for different positions
-    
+
     # p = calc_probability(maze_initial, 1, 1, debug_level)
-    p = calc_probability(maze_initial, debug_level, telegram=config['telegram'])
+    p = calc_probability(maze_initial, debug_level,
+                         telegram=config['telegram'])
 
     print(p)
