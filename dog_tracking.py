@@ -74,6 +74,11 @@ class Maze:
         return m
 
     def can_move(self, x, y):
+        if x < 0 or y < 0:
+            return False
+        if x >= len(self.map) or y >= len(self.map[0]):
+            return False
+
         return self.map[x][y] in (Tile.CORRIDOR.value, Tile.GIRL.value)
 
     def move(self, debug=False):
@@ -116,6 +121,11 @@ class Maze:
                 direction[1] = 1
             elif d_y < 0:
                 direction[1] = -1
+
+            if not self.can_move(self.dog[0]+direction[0], self.dog[1]):
+                angle_b = float('inf')
+            if not self.can_move(self.dog[0], self.dog[1]+direction[1]):
+                angle_a = float('inf')
 
             if debug:
                 print("angles", angle_a, angle_b)
@@ -161,22 +171,29 @@ def debug_one(map, dog_pos, girl_pos, debug=False):
     print(Result(c).name)
 
 
-def calc_probability(maze_initial, girl_range_i=None, girl_range_j=None, debug=0):
+def calc_probability(maze_initial, girl_range_i=None, girl_range_j=None, debug=0, disable_vertices=True):
     n_win = 0
     n_stuck = 0
 
     if girl_range_i is None:
-        girl_range_i = len(maze_initial.map)
+        girl_range_i = range(len(maze_initial.map))
     if girl_range_j is None:
-        girl_range_j = len(maze_initial.map[0])
+        girl_range_j = range(len(maze_initial.map[0]))
 
-    for k in range(girl_range_i):
-        for l in range(girl_range_j):
+    for k in girl_range_i:
+        for l in girl_range_j:
             if not maze_initial.can_move(k, l):
                 continue
 
+            # check if point is a vertex
+            if disable_vertices:
+                if (maze_initial.can_move(k+1, l) ^ maze_initial.can_move(k-1, l)) or \
+                        (maze_initial.can_move(k, l+1) ^ maze_initial.can_move(k, l-1)):
+
+                    continue
+
             if debug > 1:
-                print(k, l)
+                print("g", k, l)
             girl_position = [k, l]
 
             for i in range(len(maze_initial.map)):
@@ -184,11 +201,16 @@ def calc_probability(maze_initial, girl_range_i=None, girl_range_j=None, debug=0
                     if not maze_initial.can_move(i, j):
                         continue
 
-                    dog_position = [i, j]
+                    # check if point is a vertex
+                    if disable_vertices:
+                        if (maze_initial.can_move(i+1, j) ^ maze_initial.can_move(i-1, j)) or \
+                                (maze_initial.can_move(i, j+1) ^ maze_initial.can_move(i, j-1)):
+
+                            continue
 
                     if debug > 1:
-                        print("\t", i, j)
-                        # print(girl_position_, dog_position_)
+                        print("\t d", i, j)
+                    dog_position = [i, j]
 
                     maze = maze_initial.copy()
 
@@ -225,13 +247,17 @@ if __name__ == "__main__":
     maze_initial = Maze()
     maze_initial.load_image(config['input']['image'])
 
-    # # debug_one(map_initial.map, [4, 4], [0, 3], print_d)
-    # # quit()
+    # debug_one(maze_initial.map, [4, 4], [0, 3], debug_level)
+    # quit()
+
+    # debug_one(maze_initial.map, [4, 3], [0, 0], debug_level)
+    # quit()
 
     # test for different positions
-    n_girl_i = len(maze_initial.map)
-    n_girl_j = len(maze_initial.map[0])
+    n_girl_i = range(len(maze_initial.map))
+    n_girl_j = range(len(maze_initial.map[0]))
 
+    # p = calc_probability(maze_initial, 1, 1, debug_level)
     p = calc_probability(maze_initial, n_girl_i, n_girl_j, debug_level)
 
     print(p)
